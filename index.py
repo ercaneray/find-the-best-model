@@ -18,6 +18,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Conv1D, Flatten, MaxPooling1D, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
+import joblib  # Makine öğrenmesi modelleri için
+from tensorflow.keras.models import save_model, load_model  # Derin öğrenme modelleri için
 
 # Veri setini yükleme
 data = pd.read_csv('data.csv')  # Dosyayı yükle
@@ -261,5 +263,117 @@ for model_name, model in dlModels.items():
 # Derin öğrenme modellerinin sonuçlarını yazdır
 results_dl_df = pd.DataFrame(results_dl)
 print(results_dl_df)
+# ROC Eğrileri çizim sonlandırma - Derin Öğrenme Modelleri
+print("------------------------------Derin Öğrenme Modellerinin ROC Eğrileri---------------------------------")
+plt.figure(figsize=(10, 8))
+
+# Makine Öğrenmesi ROC eğrilerini çizme
+for result in results:
+    model_name = result['Model']
+    roc_auc = result['AUC']
+    plt.plot(fpr, tpr, label=f'{model_name} (AUC = {roc_auc:.2f})')
+
+# Derin Öğrenme ROC eğrilerini çizme
+for model_name, model in dlModels.items():
+    if model_name == 'CNN':
+        # CNN için giriş verilerinin yeniden şekillendirilmesi
+        X_test_cnn = X_test_scaled.reshape(X_test_scaled.shape[0], X_test_scaled.shape[1], 1)
+        y_pred_prob = model.predict(X_test_cnn).flatten()  # Olasılık tahminleri
+    else:
+        y_pred_prob = model.predict(X_test_scaled).flatten()  # Olasılık tahminleri
+    
+    fpr, tpr, _ = roc_curve(y_test_binary, y_pred_prob)
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, label=f'{model_name} (AUC = {roc_auc:.2f})')
+
+# ROC Eğrisi Grafiği
+plt.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Makine Öğrenmesi ve Derin Öğrenme Modellerinin ROC Eğrileri')
+plt.legend(loc='lower right')
+plt.show()
+# Makine Öğrenmesi ve Derin Öğrenme Sonuçlarını Birleştirme
+all_results = pd.concat([
+    pd.DataFrame(results),  # Makine öğrenmesi sonuçları
+    pd.DataFrame(results_dl)  # Derin öğrenme sonuçları
+])
+
+# En iyi modeli seçmek için sıralama
+sorted_results = all_results.sort_values(by=['Accuracy', 'F1-Score', 'AUC'], ascending=False)
+
+# Tüm sonuçları ve en iyi modeli yazdırma
+print("\n--- Model Performans Karşılaştırma Tablosu ---\n")
+print(sorted_results)
+
+
+# En iyi modeli seçme
+sorted_results = all_results.sort_values(by=['Accuracy', 'F1-Score'], ascending=False)
+best_model_name = sorted_results.iloc[0]['Model']
+print(f"En iyi model: {best_model_name}")
+
+# En iyi modeli kaydetme
+if best_model_name in mlModels.keys():
+    # Makine öğrenmesi modelini seç ve kaydet
+    best_model = mlModels[best_model_name]
+    best_model.fit(X_train_scaled, y_train_binary)
+    joblib.dump(best_model, f'{best_model_name}.pkl')
+    print(f"Makine öğrenmesi modeli kaydedildi: {best_model_name}.pkl")
+else:
+    # Derin öğrenme modelini seç ve kaydet
+    best_model = dlModels[best_model_name]
+    if best_model_name == 'CNN':
+        # CNN modeli için veriyi yeniden şekillendir
+        X_train_cnn = X_train_scaled.reshape(X_train_scaled.shape[0], X_train_scaled.shape[1], 1)
+        best_model.fit(X_train_cnn, y_train_binary, epochs=10, verbose=0)
+    else:
+        best_model.fit(X_train_scaled, y_train_binary, epochs=10, verbose=0)
+    save_model(best_model, f'{best_model_name}.h5')
+    print(f"Derin öğrenme modeli kaydedildi: {best_model_name}.h5")
+
+# Tahmin yapacak bir fonksiyon
+def predict_new_sample(sample):
+    """
+    Yeni bir örnek için tahmin yapar.
+    :param sample: Yeni örnek (pandas Series veya numpy array, şekli: (özellik_sayısı,))
+    :return: Tahmin sonucu (etiket ve olasılık)
+    """
+    if isinstance(sample, pd.Series):
+        sample = sample.values.reshape(1, -1)  # Pandas Series'i numpy array'e dönüştür ve yeniden şekillendir
+    else:
+        sample = np.array(sample).reshape(1, -1)  # Numpy array'e dönüştür ve yeniden şekillendir
+    
+    # Özellik isimlerini içerecek şekilde DataFrame'e dönüştür
+    sample_df = pd.DataFrame(sample, columns=X.columns)
+    sample_scaled = scaler.transform(sample_df)  # Girdiyi ölçeklendir
+
+    if best_model_name in mlModels.keys():
+        # Makine öğrenmesi modeli kullanarak tahmin
+        loaded_model = joblib.load(f'{best_model_name}.pkl')
+        prediction = loaded_model.predict(sample_scaled)
+        probability = loaded_model.predict_proba(sample_scaled)[:, 1] if hasattr(loaded_model, 'predict_proba') else None
+    else:
+        # Derin öğrenme modeli kullanarak tahmin
+        loaded_model = load_model(f'{best_model_name}.h5')
+        if best_model_name == 'CNN':
+            # CNN için girişin yeniden şekillendirilmesi
+            sample_scaled = sample_scaled.reshape(1, sample_scaled.shape[1], 1)
+        prediction = (loaded_model.predict(sample_scaled) >= 0.5).astype(int)
+        probability = loaded_model.predict(sample_scaled).flatten()
+    
+    return {
+        'prediction': int(prediction[0]), 
+        'probability': float(probability[0] if probability is not None else 0)
+    }
+
+# Örnek kullanım
+new_sample = X_test.iloc[0]  # Test setinden bir örnek
+result = predict_new_sample(new_sample)
+print(f"Tahmin Sonucu: {result}")
+
+
+
+
+
 
 
