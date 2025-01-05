@@ -5,7 +5,7 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from lightgbm import LGBMClassifier
@@ -20,9 +20,29 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 import joblib  # Makine öğrenmesi modelleri için
 from tensorflow.keras.models import save_model, load_model  # Derin öğrenme modelleri için
+import sys
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import cross_val_score
+
+# Kodu fonksiyonlara bölmek için önerilen yapı
+def veri_on_isleme(data):
+    # Veri ön işleme adımları...
+    pass
+
+def model_egitimi(X_train, y_train):
+    # Model eğitim adımları...
+    pass
+
+def performans_degerlendirme(y_true, y_pred):
+    # Performans metrikleri hesaplama...
+    pass
 
 # Veri setini yükleme
-data = pd.read_csv('data.csv')  # Dosyayı yükle
+try:
+    data = pd.read_csv('data.csv')
+except FileNotFoundError:
+    print("Veri dosyası bulunamadı!")
+    sys.exit(1)
 data = data.drop(columns=['id'])  # 'id' sütununu kaldır
 data.columns = data.columns.str.strip()  # Sütun adlarındaki gereksiz boşlukları temizle
 
@@ -83,7 +103,7 @@ y_test_binary = (y_test >= threshold).astype(int)
 
 # Model ve isim tanımlamaları
 mlModels = {
-    'Linear Regression': LinearRegression(),
+    'Logistic Regression': LogisticRegression(random_state=42),
     'Random Forest': RandomForestClassifier(random_state=42, n_estimators=100),
     'Decision Tree': DecisionTreeClassifier(random_state=42),
     'XGBoost': XGBClassifier(eval_metric='logloss', random_state=42),
@@ -97,39 +117,20 @@ results = []
 print("------------------------------Makine Öğrenmesi Modellerini Eğitme---------------------------------")
 for model_name, model in mlModels.items():
     print(f"{model_name} modeli eğitiliyor...")
+    
+    model_clone = clone(model)
+    model_clone.fit(X_train_scaled, y_train_binary)
+    y_pred = model_clone.predict(X_test_scaled)
+    y_pred_prob = model_clone.predict_proba(X_test_scaled)[:, 1]
 
-    if model_name == 'Linear Regression':
-        model_clone = clone(model)
-        model_clone.fit(X_train_scaled, y_train)
-        y_pred = model_clone.predict(X_test_scaled)
-
-        mse = mean_squared_error(y_test, y_pred)
-        rmse = mse ** 0.5
-
-        y_pred_binary = (y_pred >= threshold).astype(int)
-
-        accuracy = accuracy_score(y_test_binary, y_pred_binary)
-        precision = precision_score(y_test_binary, y_pred_binary)
-        recall = recall_score(y_test_binary, y_pred_binary)
-        f1 = f1_score(y_test_binary, y_pred_binary)
-        kappa = cohen_kappa_score(y_test_binary, y_pred_binary)
-        fpr, tpr, _ = roc_curve(y_test_binary, y_pred)
-        roc_auc = auc(fpr, tpr)
-
-    else:
-        model_clone = clone(model)
-        model_clone.fit(X_train_scaled, y_train_binary)
-        y_pred = model_clone.predict(X_test_scaled)
-        y_pred_prob = model_clone.predict_proba(X_test_scaled)[:, 1]
-
-        accuracy = accuracy_score(y_test_binary, y_pred)
-        precision = precision_score(y_test_binary, y_pred)
-        recall = recall_score(y_test_binary, y_pred)
-        f1 = f1_score(y_test_binary, y_pred)
-        kappa = cohen_kappa_score(y_test_binary, y_pred)
-        fpr, tpr, _ = roc_curve(y_test_binary, y_pred_prob)
-        roc_auc = auc(fpr, tpr)
-
+    accuracy = accuracy_score(y_test_binary, y_pred)
+    precision = precision_score(y_test_binary, y_pred)
+    recall = recall_score(y_test_binary, y_pred)
+    f1 = f1_score(y_test_binary, y_pred)
+    kappa = cohen_kappa_score(y_test_binary, y_pred)
+    fpr, tpr, _ = roc_curve(y_test_binary, y_pred_prob)
+    roc_auc = auc(fpr, tpr)
+    
     results.append({
         'Model': model_name,
         'Accuracy': accuracy,
@@ -207,7 +208,7 @@ for model_name, model in dlModels.items():
             X_train_cnn,
             y_train_binary,
             validation_split=0.2,
-            epochs=10,
+            epochs=100,
             batch_size=32,
             callbacks=[early_stopping],
             verbose=1
@@ -228,7 +229,7 @@ for model_name, model in dlModels.items():
             X_train_scaled,
             y_train_binary,
             validation_split=0.2,
-            epochs=10,
+            epochs=100,
             batch_size=32,
             callbacks=[early_stopping],
             verbose=1
@@ -325,9 +326,9 @@ else:
     if best_model_name == 'CNN':
         # CNN modeli için veriyi yeniden şekillendir
         X_train_cnn = X_train_scaled.reshape(X_train_scaled.shape[0], X_train_scaled.shape[1], 1)
-        best_model.fit(X_train_cnn, y_train_binary, epochs=10, verbose=0)
+        best_model.fit(X_train_cnn, y_train_binary, epochs=100, verbose=0)
     else:
-        best_model.fit(X_train_scaled, y_train_binary, epochs=10, verbose=0)
+        best_model.fit(X_train_scaled, y_train_binary, epochs=100, verbose=0)
     save_model(best_model, f'{best_model_name}.h5')
     print(f"Derin öğrenme modeli kaydedildi: {best_model_name}.h5")
 
@@ -370,8 +371,6 @@ def predict_new_sample(sample):
 new_sample = X_test.iloc[0]  # Test setinden bir örnek
 result = predict_new_sample(new_sample)
 print(f"Tahmin Sonucu: {result}")
-
-
 
 
 
