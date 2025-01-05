@@ -18,49 +18,49 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Conv1D, Flatten, MaxPooling1D, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
-import joblib  # Makine öğrenmesi modelleri için
-from tensorflow.keras.models import save_model, load_model  # Derin öğrenme modelleri için
+import joblib  # For machine learning models
+from tensorflow.keras.models import save_model, load_model  # For deep learning models
 import sys
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import cross_val_score
 
-# Kodu fonksiyonlara bölmek için önerilen yapı
+# Suggested structure for dividing code into functions
 def veri_on_isleme(data):
-    # Veri ön işleme adımları...
+    # Data preprocessing steps...
     pass
 
 def model_egitimi(X_train, y_train):
-    # Model eğitim adımları...
+    # Model training steps...
     pass
 
 def performans_degerlendirme(y_true, y_pred):
-    # Performans metrikleri hesaplama...
+    # Calculate performance metrics...
     pass
 
-# Veri setini yükleme
+# Loading the dataset
 try:
     data = pd.read_csv('data.csv')
 except FileNotFoundError:
-    print("Veri dosyası bulunamadı!")
+    print("Data file not found!")
     sys.exit(1)
-data = data.drop(columns=['id'])  # 'id' sütununu kaldır
-data.columns = data.columns.str.strip()  # Sütun adlarındaki gereksiz boşlukları temizle
+data = data.drop(columns=['id'])  # Remove 'id' column
+data.columns = data.columns.str.strip()  # Clean unnecessary spaces in column names
 
-print("------------------------------Sayısal Değerler Hakkında Bilgiler---------------------------------")
-print(data.describe())  # Veri seti hakkında genel bilgi
+print("------------------------------Information About Numerical Values---------------------------------")
+print(data.describe())  # General information about the dataset
 
-# Eksik değer analizi
-print("------------------------------Eksik Değer Analizi----------------------------------------------")
-missing_values = data.isnull().sum()  # Her sütundaki eksik değer sayısı
+# Missing value analysis
+print("------------------------------Missing Value Analysis----------------------------------------------")
+missing_values = data.isnull().sum()  # Number of missing values in each column
 if missing_values.sum() == 0:
-    print("Eksik değer bulunmamaktadır.")
+    print("No missing values found.")
 else:
-    print("Eksik değerlerin sayısı: ", missing_values.sum())
-    print("Eksik değerlerin sütunlara göre dağılımı: ")
+    print("Number of missing values: ", missing_values.sum())
+    print("Distribution of missing values by columns: ")
     print(missing_values)
 
-# Aykırı Değer Analizi ve İşleme (IQR Yöntemi)
-print("------------------------------Aykırı Değerleri IQR ile Çıkarma---------------------------------")
+# Outlier Analysis and Processing (IQR Method)
+print("------------------------------Removing Outliers with IQR---------------------------------")
 numeric_columns = data.select_dtypes(include=np.number).columns
 etkilenen_satirlar = set()
 
@@ -81,27 +81,26 @@ for col in numeric_columns:
         data[col]
     )
 
-print(f"Etkilenen toplam aykırı değer satırı: {len(etkilenen_satirlar)}")
+print(f"Total number of rows affected by outliers: {len(etkilenen_satirlar)}")
 
-# Özellikler (X) ve hedef değişken (y) ayrımı
+# Feature (X) and target variable (y) separation
 X = data.drop(columns=[data.columns[-1]])
 y = data[data.columns[-1]]
 
-# Veri setini eğitim ve test olarak ayırma
+# Splitting dataset into training and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Dataseti ölçeklendirme
+# Scaling the dataset
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-# Binary sınıflandırma için eşik değeri belirleme
+# Determining threshold value for binary classification
 threshold = y.median()
 y_train_binary = (y_train >= threshold).astype(int)
 y_test_binary = (y_test >= threshold).astype(int)
 
-
-# Model ve isim tanımlamaları
+# Model definitions and names
 mlModels = {
     'Logistic Regression': LogisticRegression(random_state=42),
     'Random Forest': RandomForestClassifier(random_state=42, n_estimators=100),
@@ -110,13 +109,13 @@ mlModels = {
     'LightGBM': LGBMClassifier(boosting_type='gbdt', num_leaves=31, learning_rate=0.05, n_estimators=100, random_state=42, verbose=-1)
 }
 
-# Sonuçları saklamak için bir liste
+# List to store results
 results = []
 
-# Modellerin döngü ile eğitimi ve değerlendirilmesi
-print("------------------------------Makine Öğrenmesi Modellerini Eğitme---------------------------------")
+# Modellers training and evaluation loop
+print("------------------------------Training Machine Learning Models---------------------------------")
 for model_name, model in mlModels.items():
-    print(f"{model_name} modeli eğitiliyor...")
+    print(f"{model_name} model training...")
     
     model_clone = clone(model)
     model_clone.fit(X_train_scaled, y_train_binary)
@@ -143,20 +142,20 @@ for model_name, model in mlModels.items():
 
     plt.plot(fpr, tpr, label=f'{model_name} (AUC = {roc_auc:.2f})')
 
-# Sonuçları DataFrame olarak yazdır
+# Results DataFrame
 results_df = pd.DataFrame(results)
 print(results_df)
 
-# ROC Eğrileri çizim sonlandırma
+# ROC Curves Plot
 plt.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level')
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
-plt.title('Makine Öğrenmesi Modellerinin ROC Eğrileri')
+plt.title('ROC Curves of Machine Learning Models')
 plt.legend(loc='lower right')
 plt.show()
 
-#* Derin Öğrenme Modelleri
-print("------------------------------Derin Öğrenme Modellerini Eğitme---------------------------------")
+# Deep Learning Models Training
+print("------------------------------Training Deep Learning Models---------------------------------")
 dlModels = {
     'CNN': Sequential([
         Input(shape=(X_train_scaled.shape[1], 1)),
@@ -174,27 +173,27 @@ dlModels = {
         Dropout(0.3),
         Dense(64, activation='relu'),
         Dropout(0.3),
-        Dense(1, activation='sigmoid')  # Binary sınıflandırma için sigmoid aktivasyonu
+        Dense(1, activation='sigmoid')  # Sigmoid activation for binary classification
     ]),
     'MLP': Sequential([
-        Input(shape=(X_train_scaled.shape[1],)),  # Giriş boyutunu belirtiyoruz
-        Dense(256, activation='relu'),  # İlk gizli katman
+        Input(shape=(X_train_scaled.shape[1],)),  # Specify input shape
+        Dense(256, activation='relu'),  # First hidden layer
         Dropout(0.3),
-        Dense(128, activation='relu'),  # İkinci gizli katman
+        Dense(128, activation='relu'),  # Second hidden layer
         Dropout(0.3),
-        Dense(64, activation='relu'),  # Üçüncü gizli katman
+        Dense(64, activation='relu'),  # Third hidden layer
         Dropout(0.3),
-        Dense(1, activation='sigmoid')  # Çıkış katmanı
+        Dense(1, activation='sigmoid')  # Output layer
     ])
 }
 
-# Derin Öğrenme Modelleri Eğitim Süreci
+# Deep Learning Models Training Process
 results_dl = []
 for model_name, model in dlModels.items():
-    print(f"{model_name} modeli eğitiliyor...")
+    print(f"{model_name} model training...")
 
     if model_name == 'CNN':
-        # CNN için giriş verilerinin yeniden şekillendirilmesi
+        # Reshaping input data for CNN
         X_train_cnn = X_train_scaled.reshape(X_train_scaled.shape[0], X_train_scaled.shape[1], 1)
         X_test_cnn = X_test_scaled.reshape(X_test_scaled.shape[0], X_test_scaled.shape[1], 1)
 
@@ -214,11 +213,11 @@ for model_name, model in dlModels.items():
             verbose=1
         )
 
-        # Test Verisinde Performansı Değerlendirme
+        # Performance Evaluation on Test Data
         test_loss, test_accuracy = model.evaluate(X_test_cnn, y_test_binary, verbose=0)
-        y_pred_prob = model.predict(X_test_cnn).flatten()  # Olasılık tahminleri
-        y_pred_binary = (y_pred_prob >= 0.5).astype(int)  # Binary tahminler
-    else:  # FCNN ve MLP için
+        y_pred_prob = model.predict(X_test_cnn).flatten()  # Probability predictions
+        y_pred_binary = (y_pred_prob >= 0.5).astype(int)  # Binary predictions
+    else:  # For FCNN and MLP
         model.compile(optimizer=Adam(learning_rate=0.001),
                       loss='binary_crossentropy',
                       metrics=['accuracy'])
@@ -235,22 +234,22 @@ for model_name, model in dlModels.items():
             verbose=1
         )
 
-        # Test Verisinde Performansı Değerlendirme
+        # Performance Evaluation on Test Data
         test_loss, test_accuracy = model.evaluate(X_test_scaled, y_test_binary, verbose=0)
-        y_pred_prob = model.predict(X_test_scaled).flatten()  # Olasılık tahminleri
-        y_pred_binary = (y_pred_prob >= 0.5).astype(int)  # Binary tahminler
+        y_pred_prob = model.predict(X_test_scaled).flatten()  # Probability predictions
+        y_pred_binary = (y_pred_prob >= 0.5).astype(int)  # Binary predictions
 
-    # Performans Metriklerini Hesaplama
+    # Calculate Performance Metrics
     test_precision = precision_score(y_test_binary, y_pred_binary)
     test_recall = recall_score(y_test_binary, y_pred_binary)
     test_f1 = f1_score(y_test_binary, y_pred_binary)
     test_auc = roc_auc_score(y_test_binary, y_pred_prob)
 
-    print(f"{model_name} modeli test doğruluğu: {test_accuracy:.4f}")
-    print(f"{model_name} modeli kesinlik (Precision): {test_precision:.4f}")
-    print(f"{model_name} modeli duyarlılık (Recall): {test_recall:.4f}")
-    print(f"{model_name} modeli F1-Score: {test_f1:.4f}")
-    print(f"{model_name} modeli AUC: {test_auc:.4f}")
+    print(f"{model_name} model test accuracy: {test_accuracy:.4f}")
+    print(f"{model_name} model precision: {test_precision:.4f}")
+    print(f"{model_name} model recall: {test_recall:.4f}")
+    print(f"{model_name} model F1-Score: {test_f1:.4f}")
+    print(f"{model_name} model AUC: {test_auc:.4f}")
     
     results_dl.append({
         'Model': model_name,
@@ -261,27 +260,27 @@ for model_name, model in dlModels.items():
         'AUC': test_auc
     })
 
-# Derin öğrenme modellerinin sonuçlarını yazdır
+# Deep learning model results
 results_dl_df = pd.DataFrame(results_dl)
 print(results_dl_df)
-# ROC Eğrileri çizim sonlandırma - Derin Öğrenme Modelleri
-print("------------------------------Derin Öğrenme Modellerinin ROC Eğrileri---------------------------------")
+# ROC Curves Plot
+print("------------------------------ROC Curves of Deep Learning Models---------------------------------")
 plt.figure(figsize=(10, 8))
 
-# Makine Öğrenmesi ROC eğrilerini çizme
+# Machine Learning ROC Curves Plot
 for result in results:
     model_name = result['Model']
     roc_auc = result['AUC']
     plt.plot(fpr, tpr, label=f'{model_name} (AUC = {roc_auc:.2f})')
 
-# Derin Öğrenme ROC eğrilerini çizme
+# Deep Learning ROC Curves Plot
 for model_name, model in dlModels.items():
     if model_name == 'CNN':
-        # CNN için giriş verilerinin yeniden şekillendirilmesi
+        # Reshape data for CNN model
         X_test_cnn = X_test_scaled.reshape(X_test_scaled.shape[0], X_test_scaled.shape[1], 1)
-        y_pred_prob = model.predict(X_test_cnn).flatten()  # Olasılık tahminleri
+        y_pred_prob = model.predict(X_test_cnn).flatten()  # Probability predictions
     else:
-        y_pred_prob = model.predict(X_test_scaled).flatten()  # Olasılık tahminleri
+        y_pred_prob = model.predict(X_test_scaled).flatten()  # Probability predictions
     
     fpr, tpr, _ = roc_curve(y_test_binary, y_pred_prob)
     roc_auc = auc(fpr, tpr)
@@ -291,62 +290,61 @@ for model_name, model in dlModels.items():
 plt.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level')
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
-plt.title('Makine Öğrenmesi ve Derin Öğrenme Modellerinin ROC Eğrileri')
+plt.title('ROC Curves of Machine Learning and Deep Learning Models')
 plt.legend(loc='lower right')
 plt.show()
-# Makine Öğrenmesi ve Derin Öğrenme Sonuçlarını Birleştirme
+# Combining Machine Learning and Deep Learning Results
 all_results = pd.concat([
-    pd.DataFrame(results),  # Makine öğrenmesi sonuçları
-    pd.DataFrame(results_dl)  # Derin öğrenme sonuçları
+    pd.DataFrame(results),  # Machine learning results
+    pd.DataFrame(results_dl)  # Deep learning results
 ])
 
-# En iyi modeli seçmek için sıralama
+# Sort to select best model
 sorted_results = all_results.sort_values(by=['Accuracy', 'F1-Score', 'AUC'], ascending=False)
 
-# Tüm sonuçları ve en iyi modeli yazdırma
-print("\n--- Model Performans Karşılaştırma Tablosu ---\n")
+# Print all results and best model
+print("\n--- Model Performance Comparison Table ---\n")
 print(sorted_results)
 
-
-# En iyi modeli seçme
+# Select best model
 sorted_results = all_results.sort_values(by=['Accuracy', 'F1-Score'], ascending=False)
 best_model_name = sorted_results.iloc[0]['Model']
-print(f"En iyi model: {best_model_name}")
+print(f"Best model: {best_model_name}")
 
-# En iyi modeli kaydetme
+# Save best model
 if best_model_name in mlModels.keys():
-    # Makine öğrenmesi modelini seç ve kaydet
+    # Select and save machine learning model
     best_model = mlModels[best_model_name]
     best_model.fit(X_train_scaled, y_train_binary)
     joblib.dump(best_model, f'{best_model_name}.pkl')
-    print(f"Makine öğrenmesi modeli kaydedildi: {best_model_name}.pkl")
+    print(f"Machine learning model saved: {best_model_name}.pkl")
 else:
-    # Derin öğrenme modelini seç ve kaydet
+    # Select and save deep learning model
     best_model = dlModels[best_model_name]
     if best_model_name == 'CNN':
-        # CNN modeli için veriyi yeniden şekillendir
+        # Reshape data for CNN model
         X_train_cnn = X_train_scaled.reshape(X_train_scaled.shape[0], X_train_scaled.shape[1], 1)
         best_model.fit(X_train_cnn, y_train_binary, epochs=100, verbose=0)
     else:
         best_model.fit(X_train_scaled, y_train_binary, epochs=100, verbose=0)
     save_model(best_model, f'{best_model_name}.h5')
-    print(f"Derin öğrenme modeli kaydedildi: {best_model_name}.h5")
+    print(f"Deep learning model saved: {best_model_name}.h5")
 
 # Tahmin yapacak bir fonksiyon
 def predict_new_sample(sample):
     """
-    Yeni bir örnek için tahmin yapar.
-    :param sample: Yeni örnek (pandas Series veya numpy array, şekli: (özellik_sayısı,))
-    :return: Tahmin sonucu (etiket ve olasılık)
+    Makes predictions for a new sample.
+    :param sample: New sample (pandas Series or numpy array, shape: (n_features,))
+    :return: Prediction result (label and probability)
     """
     if isinstance(sample, pd.Series):
-        sample = sample.values.reshape(1, -1)  # Pandas Series'i numpy array'e dönüştür ve yeniden şekillendir
+        sample = sample.values.reshape(1, -1)  # Convert pandas Series to numpy array and reshape
     else:
-        sample = np.array(sample).reshape(1, -1)  # Numpy array'e dönüştür ve yeniden şekillendir
+        sample = np.array(sample).reshape(1, -1) # Convert sample to numpy array and reshape
     
-    # Özellik isimlerini içerecek şekilde DataFrame'e dönüştür
+    # Convert sample to DataFrame with feature names
     sample_df = pd.DataFrame(sample, columns=X.columns)
-    sample_scaled = scaler.transform(sample_df)  # Girdiyi ölçeklendir
+    sample_scaled = scaler.transform(sample_df)  # Scale input
 
     if best_model_name in mlModels.keys():
         # Makine öğrenmesi modeli kullanarak tahmin
@@ -354,10 +352,10 @@ def predict_new_sample(sample):
         prediction = loaded_model.predict(sample_scaled)
         probability = loaded_model.predict_proba(sample_scaled)[:, 1] if hasattr(loaded_model, 'predict_proba') else None
     else:
-        # Derin öğrenme modeli kullanarak tahmin
+            # Derin öğrenme modeli kullanarak tahmin
         loaded_model = load_model(f'{best_model_name}.h5')
         if best_model_name == 'CNN':
-            # CNN için girişin yeniden şekillendirilmesi
+            # Reshape input for CNN
             sample_scaled = sample_scaled.reshape(1, sample_scaled.shape[1], 1)
         prediction = (loaded_model.predict(sample_scaled) >= 0.5).astype(int)
         probability = loaded_model.predict(sample_scaled).flatten()
@@ -367,10 +365,10 @@ def predict_new_sample(sample):
         'probability': float(probability[0] if probability is not None else 0)
     }
 
-# Örnek kullanım
-new_sample = X_test.iloc[0]  # Test setinden bir örnek
+# Example usage
+new_sample = X_test.iloc[0]  # One sample from test set
 result = predict_new_sample(new_sample)
-print(f"Tahmin Sonucu: {result}")
+print(f"Prediction Result: {result}")
 
 
 
